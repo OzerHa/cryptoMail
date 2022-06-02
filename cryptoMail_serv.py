@@ -67,6 +67,8 @@ class main(threading.Thread):
                 msg = self.transfertMessage.recvMessage()
             except ValueError:
                 sys.exit()
+            except ConnectionResetError:
+                print("client deconnecte")
             typeMesg = getType(msg)
 
             if typeMesg == 'check in db':

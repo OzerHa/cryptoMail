@@ -159,7 +159,6 @@ class CheckEmail:
                 if not check:
                     showerror('Adresse inconnue',"L'adresse mail du destinataire n'existe pas dans notre système")
                 else:
-                    showinfo('Adresse connue',"L'adresse mail du destinataire est dans notre système.")
                     CheckEmail.askWhatToDo(self,destMail)
         else:
             CheckEmail.askWhatToDo(self,"Anonymous")
