@@ -300,6 +300,7 @@ class gestionConnexion():
             print(getLocalTime()+"DH exchange succesfull, starting RSA exchange...")
         privateKey, publicKey = chiffrementRSA.getMyAccountRSAKey(sizeRSA)
         print(privateKey," public")
+        time.sleep(0.5)
         pubicKeyCryptDH = chiffrementDH.encryptDH(publicKey.decode('utf-8'),keyDH)
         gestionConnexion.sendMsgExchange(self,pubicKeyCryptDH)
         var = threading.Thread(target=lambda:gestionConnexion.recvMessageExchange(self,True))
