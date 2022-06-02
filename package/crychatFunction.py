@@ -1,6 +1,27 @@
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP, AES
-import base64, os, time, sys, string, random, pyDH, math, hashlib
+#####################################################################
+#   This library allows the security of your data through a socket. #
+#   It uses 3 different encryptions: Diffie-hellman, RSA and AES.   #
+#   It also provides packet management and formatting of your data. #
+#####################################################################
+
+
+### Import ###
+import base64, os, time, sys, string, random, math, hashlib
+
+try:
+    from Crypto.PublicKey import RSA
+    from Crypto.Cipher import PKCS1_OAEP, AES
+    import pyDH
+except ImportError:
+    try:
+        os.system("pip install pycrypto")
+        os.system("pip install pyDH")
+
+        from Crypto.PublicKey import RSA
+        from Crypto.Cipher import PKCS1_OAEP, AES
+        import pyDH
+    except :
+        print("Erreur d'importation, veuillez contacter un admin.")
 
 
 class bcolors:
@@ -13,6 +34,7 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
 
 class cleanMessage:
     # Fonction pour le formatage des messages lors du transfert par le socket #
@@ -37,8 +59,8 @@ class cleanMessage:
 
 class chiffrementRSA:
     # Fonction de cryptage et decryptage RSA
-    def getMyAccountRSAKey():
-        key = RSA.generate(2048)
+    def getMyAccountRSAKey(sizeRSA):
+        key = RSA.generate(sizeRSA)
         privateKey = key.export_key('PEM')
         publicKey = key.public_key().export_key('PEM')
         # Output: bytes
@@ -252,7 +274,7 @@ class gestionConnexion:
         return separator
 
     # Fonction de gestion de connexion
-    def gestionConnexionServeur(self):
+    def gestionConnexionServeur(self,sizeRSA=2048):
         if self.verbose:
             print(getLocalTime()+"Starting DH exchange...")
         p1,p1Public = chiffrementDH.getMyDHSessionKey()
@@ -262,13 +284,15 @@ class gestionConnexion:
         keyDH = bytes(chiffrementDH.getUseableKey(keyDH),'utf-8')
         if self.verbose:
             print(getLocalTime()+"DH exchange succesfull, starting RSA exchange...")
-        privateKey, publicKey = chiffrementRSA.getMyAccountRSAKey()
+        privateKey, publicKey = chiffrementRSA.getMyAccountRSAKey(sizeRSA)
         pubicKeyCryptDH = chiffrementDH.encryptDH(publicKey.decode('utf-8'),keyDH)
         self.socket.sendall(pubicKeyCryptDH)
         recv = self.socket.recv(self.buffer)
         recv = chiffrementRSA.decryptRSA(recv,privateKey)
         if recv == "error RSA":
-            gestionConnexion.gestionConnexionServeur(self)
+            gestionConnexion.gestionConnexionServeur(self,1024)
+            if self.verbose:
+                print(getLocalTime()+"RSA exchange error, trying again...")
         if self.verbose:
             print(getLocalTime()+"RSA exchange succesfull, starting AES key reconstruction...")
         AesSessionKey, self.separator = eval(recv)
