@@ -298,8 +298,9 @@ class gestionConnexion():
         keyDH = bytes(chiffrementDH.getUseableKey(keyDH),'utf-8')
         if self.verbose:
             print(getLocalTime()+"DH exchange succesfull, starting RSA exchange...")
+        print('generating rsa')
         privateKey, publicKey = chiffrementRSA.getMyAccountRSAKey(sizeRSA)
-        print(privateKey," public")
+        print("genartion finish")
         time.sleep(0.5)
         pubicKeyCryptDH = chiffrementDH.encryptDH(publicKey.decode('utf-8'),keyDH)
         gestionConnexion.sendMsgExchange(self,pubicKeyCryptDH)
