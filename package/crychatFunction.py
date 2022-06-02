@@ -11,7 +11,7 @@ import base64, os, time, sys, string, random, math, hashlib
 try:
     from Crypto.PublicKey import RSA
     from Crypto.Cipher import PKCS1_OAEP, AES
-    import pyDH
+    import pyDH, threading
 except ImportError:
     try:
         os.system("pip install pycrypto")
@@ -253,12 +253,14 @@ class formatageMessage:
         return msg
     ###
 
-class gestionConnexion:
+class gestionConnexion():
+    
     def __init__(self,socket,buffer,verbose=False):
         self.socket = socket
         self.buffer = buffer
         self.separator = gestionConnexion.generateSeparator()
         self.verbose = verbose
+        self.recv = None
 
     @staticmethod
     def generateSeparator():
@@ -273,26 +275,50 @@ class gestionConnexion:
             separator = separator.replace(':',';')
         return separator
 
+    def sendMsgExchange(self,msg):
+        self.socket.sendall(msg)
+
+    def recvMessageExchange(self,arg=False): 
+        recv = self.socket.recv(self.buffer)
+        if arg:
+            self.recv = recv
+        return recv
+
     # Fonction de gestion de connexion
     def gestionConnexionServeur(self,sizeRSA=2048):
+        if sizeRSA != 2048: 
+            time.sleep(0.5)
+        #threading.Thread(target=lambda:cryChatServeur.sendMessageFromChat(self)).start()
         if self.verbose:
             print(getLocalTime()+"Starting DH exchange...")
         p1,p1Public = chiffrementDH.getMyDHSessionKey()
-        self.socket.send(bytes(str(p1Public),'utf-8'))
-        p2Public = int(self.socket.recv(self.buffer).decode('utf-8'))
+        gestionConnexion.sendMsgExchange(self,bytes(str(p1Public),'utf-8'))
+        p2Public = int(gestionConnexion.recvMessageExchange(self).decode('utf-8'))
         keyDH = chiffrementDH.decodeDH(p1,p2Public)
         keyDH = bytes(chiffrementDH.getUseableKey(keyDH),'utf-8')
         if self.verbose:
             print(getLocalTime()+"DH exchange succesfull, starting RSA exchange...")
         privateKey, publicKey = chiffrementRSA.getMyAccountRSAKey(sizeRSA)
         pubicKeyCryptDH = chiffrementDH.encryptDH(publicKey.decode('utf-8'),keyDH)
-        self.socket.sendall(pubicKeyCryptDH)
-        recv = self.socket.recv(self.buffer)
-        recv = chiffrementRSA.decryptRSA(recv,privateKey)
+        gestionConnexion.sendMsgExchange(self,pubicKeyCryptDH)
+        var = threading.Thread(target=lambda:gestionConnexion.recvMessageExchange(self,True))
+        var.start()
+        t = time.monotonic()
+        while self.recv == None:
+            delta = time.monotonic() - t
+            if delta > 5: 
+                print('Error time')
+                break
+            pass
+        try:
+            recv = chiffrementRSA.decryptRSA(self.recv,privateKey)
+        except Exception as e: 
+            print(e,' Error')
+            recv = "error RSA"
         if recv == "error RSA":
-            gestionConnexion.gestionConnexionServeur(self,1024)
             if self.verbose:
                 print(getLocalTime()+"RSA exchange error, trying again...")
+            gestionConnexion.gestionConnexionServeur(self,1024)
         if self.verbose:
             print(getLocalTime()+"RSA exchange succesfull, starting AES key reconstruction...")
         AesSessionKey, self.separator = eval(recv)
@@ -304,19 +330,19 @@ class gestionConnexion:
         if self.verbose:
             print(getLocalTime()+"Starting DH exchange...")
         p2,p2Public = chiffrementDH.getMyDHSessionKey()
-        p1Public = int(self.socket.recv(self.buffer).decode('utf-8'))
+        p1Public = int(gestionConnexion.recvMessageExchange(self).decode('utf-8'))
         keyDH = chiffrementDH.decodeDH(p2,p1Public)
         keyDH = bytes(chiffrementDH.getUseableKey(keyDH),'utf-8')
-        self.socket.send(bytes(str(p2Public),'utf-8'))
+        gestionConnexion.sendMsgExchange(self,bytes(str(p2Public),'utf-8'))
         if self.verbose:
             print(getLocalTime()+"DH exchange succesfull, starting RSA exchange...")
-        RsaPublicKeyServeurCryptDH = self.socket.recv(self.buffer)
+        RsaPublicKeyServeurCryptDH = gestionConnexion.recvMessageExchange(self)
         RsaPublicKeyServeur = bytes(chiffrementDH.decryptDH(RsaPublicKeyServeurCryptDH,keyDH),'utf-8')
         if self.verbose:
             print(getLocalTime()+"RSA exchange succesfull, starting AES key exchange...")
         AesSessionKey = chiffrementAES.getMyAesSessionKey()
         messageToSend = chiffrementRSA.encryptRsa(str([AesSessionKey,self.separator]),RsaPublicKeyServeur)
-        self.socket.sendall(messageToSend)
+        gestionConnexion.sendMsgExchange(self,messageToSend)
         if self.verbose:
             print(getLocalTime()+"AES key exchange succesfull.")
         return AesSessionKey, self.separator
